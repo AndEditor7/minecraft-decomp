@@ -1,6 +1,7 @@
 plugins {
     id 'base'
     id 'idea'
+    id 'org.jetbrains.gradle.plugin.idea-ext' version '1.1.10'
 }
 
 allprojects {
@@ -370,8 +371,28 @@ task runClient(type: JavaExec) {
         '--version', '1.21.11',
         '--accessToken', '0',
         '--assetsDir', 'assets',
-        '--assetIndex', assetIndexId
+        '--assetIndex', assetIndexId,
+        '--gameDir', runDir
     ]
+}
+
+idea.project.settings {
+    runConfigurations {
+        'Minecraft Client'(org.jetbrains.gradle.ext.Application) {
+            mainClass = 'net.minecraft.client.main.Main'
+            moduleName = "${rootProject.name}.client.main"
+            workingDirectory = "${rootDir}/run"
+            programParameters = "--version 1.21.11 --accessToken 0 --assetsDir assets --assetIndex ${assetIndexId} --gameDir ${rootDir}/run"
+            envs = ['__GL_THREADED_OPTIMIZATIONS': '0']
+        }
+
+        'Minecraft Server'(org.jetbrains.gradle.ext.Application) {
+            mainClass = 'net.minecraft.server.Main'
+            moduleName = "${rootProject.name}.server.main"
+            workingDirectory = "${rootDir}/run_server"
+            programParameters = 'nogui'
+        }
+    }
 }
 
 task genServerPatch(type: Exec) {
