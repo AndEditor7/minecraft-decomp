@@ -1,0 +1,37 @@
+# AI CLI Tools
+.claude/
+.claude-flow/
+.swarm/
+AGENTS.md
+
+.gradle
+build/
+
+# Decompiled source (generated)
+decompSrc/
+
+# Patched snapshots (generated)
+patchSrc/
+
+# Generated source code (decompiled + patched)
+server/src/
+client/src/
+server/bin/
+client/bin/
+
+# Run directories
+run/
+run_server/
+runclient/
+
+# Ignore Gradle GUI config
+gradle-app.setting
+
+# Avoid ignoring Gradle wrapper jar file (.jar files are usually ignored)
+!gradle-wrapper.jar
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+out/
