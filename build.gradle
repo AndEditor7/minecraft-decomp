@@ -68,7 +68,8 @@ task decompServer(type: Exec) {
     def libArgs = buildLibArgs(libsDir, decompLibs)
 
     commandLine = ['java', '-jar', vfJar,
-        '-din=1', '-rbr=1', '-dgs=1', '-asc=1', '-rsy=1'
+        '-din=1', '-rbr=1', '-dgs=1', '-asc=1', '-rsy=1',
+        '--indent-string=    ', '--excluded-classes=.*package-info'
     ] + libArgs + [inputJar, outputDir]
 }
 
@@ -87,7 +88,8 @@ task decompClient(type: Exec) {
     def libArgs = buildLibArgs(libsDir, decompLibs)
 
     commandLine = ['java', '-jar', vfJar,
-        '-din=1', '-rbr=1', '-dgs=1', '-asc=1', '-rsy=1'
+        '-din=1', '-rbr=1', '-dgs=1', '-asc=1', '-rsy=1',
+        '--indent-string=    ', '--excluded-classes=.*package-info'
     ] + libArgs + [inputJar, outputDir]
 }
 
@@ -383,6 +385,7 @@ idea.project.settings {
             moduleName = "${rootProject.name}.client.main"
             workingDirectory = "${rootDir}/run"
             programParameters = "--version 1.21.11 --accessToken 0 --assetsDir assets --assetIndex ${assetIndexId} --gameDir ${rootDir}/run"
+            jvmArgs = '-XX:+AllowEnhancedClassRedefinition'
             envs = ['__GL_THREADED_OPTIMIZATIONS': '0']
         }
 
@@ -391,6 +394,7 @@ idea.project.settings {
             moduleName = "${rootProject.name}.server.main"
             workingDirectory = "${rootDir}/run_server"
             programParameters = 'nogui'
+            jvmArgs = '-XX:+AllowEnhancedClassRedefinition'
         }
     }
 }
