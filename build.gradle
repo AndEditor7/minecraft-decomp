@@ -1,0 +1,470 @@
+plugins {
+    id 'base'
+    id 'idea'
+}
+
+allprojects {
+    apply plugin: 'java'
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
+
+    version = '1.21.11'
+
+    repositories {
+        mavenCentral()
+        maven { url 'https://libraries.minecraft.net' }
+    }
+
+    tasks.withType(JavaCompile) {
+        options.encoding = 'UTF-8'
+        options.compilerArgs << '-Xlint:-options'
+    }
+}
+
+def vfJar = "${rootDir}/vineflower.jar"
+def libsDir = "${rootDir}/libs"
+def jarsDir = "${rootDir}/jars"
+def patchesDir = "${rootDir}/patches"
+def modsDir = "${rootDir}/mods"
+def decompSrcDir = "${rootDir}/decompSrc"
+def patchSrcDir = "${rootDir}/patchSrc"
+def assetIndexId = '29'
+def assetIndexUrl = 'https://piston-meta.mojang.com/v1/packages/9eb99101f5fd6921b599c7ca10e2fa3d1c909b99/29.json'
+
+def decompLibs = [
+    'authlib-7.0.61.jar',
+    'brigadier-1.3.10.jar',
+    'datafixerupper-9.0.19.jar',
+    'gson-2.13.2.jar',
+    'guava-33.5.0-jre.jar',
+    'fastutil-8.5.18.jar',
+    'netty-common-4.2.7.Final.jar',
+    'netty-buffer-4.2.7.Final.jar',
+    'joml-1.10.8.jar',
+    'log4j-api-2.25.2.jar',
+    'slf4j-api-2.0.17.jar',
+]
+
+def buildLibArgs(String libsPath, List<String> libs) {
+    return libs.collect { "-e=${libsPath}/${it}" }
+}
+
+task decompServer(type: Exec) {
+    group = 'decompile'
+    description = 'Decompile server.jar'
+
+    def outputDir = "${decompSrcDir}/server"
+    def inputJar = "${jarsDir}/server.jar"
+
+    doFirst {
+        delete outputDir
+        mkdir outputDir
+    }
+
+    def libArgs = buildLibArgs(libsDir, decompLibs)
+
+    commandLine = ['java', '-jar', vfJar,
+        '-din=1', '-rbr=1', '-dgs=1', '-asc=1', '-rsy=1'
+    ] + libArgs + [inputJar, outputDir]
+}
+
+task decompClient(type: Exec) {
+    group = 'decompile'
+    description = 'Decompile client.jar'
+
+    def outputDir = "${decompSrcDir}/client"
+    def inputJar = "${jarsDir}/client.jar"
+
+    doFirst {
+        delete outputDir
+        mkdir outputDir
+    }
+
+    def libArgs = buildLibArgs(libsDir, decompLibs)
+
+    commandLine = ['java', '-jar', vfJar,
+        '-din=1', '-rbr=1', '-dgs=1', '-asc=1', '-rsy=1'
+    ] + libArgs + [inputJar, outputDir]
+}
+
+task applyServerPatch(type: Exec) {
+    group = 'patches'
+    description = 'Apply server.patch'
+    dependsOn decompServer
+
+    def srcDir = "${decompSrcDir}/server"
+    def patchFile = "${patchesDir}/server.patch"
+    def destDir = "${rootDir}/server/src/main/java"
+    def resDir = "${rootDir}/server/src/main/resources"
+
+    doFirst {
+        delete destDir
+        mkdir destDir
+        copy {
+            from "${srcDir}/com"
+            into "${destDir}/com"
+        }
+        copy {
+            from "${srcDir}/net"
+            into "${destDir}/net"
+        }
+
+        delete resDir
+        mkdir resDir
+        copy {
+            from "${srcDir}/assets"
+            into "${resDir}/assets"
+        }
+        copy {
+            from "${srcDir}/data"
+            into "${resDir}/data"
+        }
+        copy {
+            from "${srcDir}/META-INF"
+            into "${resDir}/META-INF"
+        }
+        copy {
+            from srcDir
+            into resDir
+            include '*.json'
+            include '*.jfc'
+        }
+    }
+
+    commandLine = ['bash', '-c', """
+        if [ ! -f "${patchFile}" ]; then
+            echo "Missing patch file: ${patchFile}" >&2
+            exit 1
+        fi
+        cd "${destDir}" && patch -p1 < "${patchFile}"
+    """]
+}
+
+task applyClientPatch(type: Exec) {
+    group = 'patches'
+    description = 'Apply client.patch'
+    dependsOn decompClient
+
+    def srcDir = "${decompSrcDir}/client"
+    def patchFile = "${patchesDir}/client.patch"
+    def destDir = "${rootDir}/client/src/main/java"
+    def resDir = "${rootDir}/client/src/main/resources"
+
+    doFirst {
+        delete destDir
+        mkdir destDir
+        copy {
+            from "${srcDir}/com"
+            into "${destDir}/com"
+        }
+        copy {
+            from "${srcDir}/net"
+            into "${destDir}/net"
+        }
+
+        delete resDir
+        mkdir resDir
+        copy {
+            from "${srcDir}/assets"
+            into "${resDir}/assets"
+        }
+        copy {
+            from "${srcDir}/data"
+            into "${resDir}/data"
+        }
+        copy {
+            from "${srcDir}/META-INF"
+            into "${resDir}/META-INF"
+        }
+        copy {
+            from srcDir
+            into resDir
+            include '*.json'
+            include '*.jfc'
+            include '*.png'
+            include '*.icns'
+        }
+    }
+
+    commandLine = ['bash', '-c', """
+        if [ ! -f "${patchFile}" ]; then
+            echo "Missing patch file: ${patchFile}" >&2
+            exit 1
+        fi
+        cd "${destDir}" && patch -p1 < "${patchFile}"
+    """]
+}
+
+task snapshotServer(type: Zip) {
+    group = 'setup'
+    description = 'Snapshot patched server'
+    dependsOn applyServerPatch
+
+    from "${rootDir}/server/src/main/java"
+    archiveFileName = 'server-base.zip'
+    destinationDirectory = file(patchSrcDir)
+}
+
+task snapshotClient(type: Zip) {
+    group = 'setup'
+    description = 'Snapshot patched client'
+    dependsOn applyClientPatch
+
+    from "${rootDir}/client/src/main/java"
+    archiveFileName = 'client-base.zip'
+    destinationDirectory = file(patchSrcDir)
+}
+
+task applyServerMods(type: Exec) {
+    group = 'mods'
+    description = 'Apply mods to server'
+    dependsOn snapshotServer
+    
+    def patchFile = "${modsDir}/server.patch"
+    def destDir = "${rootDir}/server/src/main/java"
+    commandLine = ['bash', '-c', "[ -f '${patchFile}' ] && cd '${destDir}' && patch -p1 < '${patchFile}' || echo 'No server.patch'"]
+}
+
+task applyClientMods(type: Exec) {
+    group = 'mods'
+    description = 'Apply mods to client'
+    dependsOn snapshotClient
+
+    def patchFile = "${modsDir}/client.patch"
+    def destDir = "${rootDir}/client/src/main/java"
+    commandLine = ['bash', '-c', "[ -f '${patchFile}' ] && cd '${destDir}' && patch -p1 < '${patchFile}' || echo 'No client.patch'"]
+}
+
+task setupServer {
+    group = 'setup'
+    description = 'Decompile, patch, and apply mods to server'
+    dependsOn applyServerMods
+}
+
+task setupClient {
+    group = 'setup'
+    description = 'Decompile, patch, and apply mods to client'
+    dependsOn applyClientMods
+}
+
+task setup {
+    group = 'setup'
+    description = 'Decompile, patch, and apply mods to client and server'
+    dependsOn setupServer, setupClient
+}
+
+task genServerMods(type: Exec) {
+    group = 'mods'
+    description = 'Generate server.patch mod'
+
+    def baseZip = "${patchSrcDir}/server-base.zip"
+    def currentDir = "${rootDir}/server/src/main/java"
+    def patchFile = "${modsDir}/server.patch"
+    def tempDir = "${buildDir}/tmp/serverBase"
+
+    commandLine = ['bash', '-c', """
+        [ ! -f "${baseZip}" ] && echo "Run setup first" >&2 && exit 1
+        rm -rf "${tempDir}" && mkdir -p "${tempDir}" && unzip -q "${baseZip}" -d "${tempDir}"
+        (cd "${tempDir}" && find com net -name "*.java" -print0) | while IFS= read -r -d '' file; do
+            [ -f "${currentDir}/\$file" ] && diff -u "${tempDir}/\$file" "${currentDir}/\$file" 2>/dev/null | sed "s|${tempDir}/|a/|g; s|${currentDir}/|b/|g"
+        done > "${patchFile}"
+        rm -rf "${tempDir}"
+        echo "Generated ${patchFile}"
+    """]
+}
+
+task genClientMods(type: Exec) {
+    group = 'mods'
+    description = 'Generate client.patch mod'
+
+    def baseZip = "${patchSrcDir}/client-base.zip"
+    def currentDir = "${rootDir}/client/src/main/java"
+    def patchFile = "${modsDir}/client.patch"
+    def tempDir = "${buildDir}/tmp/clientBase"
+
+    commandLine = ['bash', '-c', """
+        [ ! -f "${baseZip}" ] && echo "Run setup first" >&2 && exit 1
+        rm -rf "${tempDir}" && mkdir -p "${tempDir}" && unzip -q "${baseZip}" -d "${tempDir}"
+        (cd "${tempDir}" && find com net -name "*.java" -print0) | while IFS= read -r -d '' file; do
+            [ -f "${currentDir}/\$file" ] && diff -u "${tempDir}/\$file" "${currentDir}/\$file" 2>/dev/null | sed "s|${tempDir}/|a/|g; s|${currentDir}/|b/|g"
+        done > "${patchFile}"
+        rm -rf "${tempDir}"
+        echo "Generated ${patchFile}"
+    """]
+}
+
+task genMods {
+    group = 'mods'
+    description = 'Generate patches for client and server'
+    dependsOn genServerMods, genClientMods
+}
+
+subprojects {
+    dependencies {
+        // mojang
+        implementation 'com.mojang:authlib:7.0.61'
+        implementation 'com.mojang:brigadier:1.3.10'
+        implementation 'com.mojang:datafixerupper:9.0.19'
+        implementation 'com.mojang:jtracy:1.0.37'
+        implementation 'com.mojang:logging:1.6.11'
+
+        // google
+        implementation 'com.google.code.gson:gson:2.13.2'
+        implementation 'com.google.guava:guava:33.5.0-jre'
+
+        // netty
+        implementation 'io.netty:netty-codec-http:4.2.7.Final'
+        implementation 'io.netty:netty-transport-classes-epoll:4.2.7.Final'
+        implementation 'io.netty:netty-transport-classes-kqueue:4.2.7.Final'
+
+        // azure/microsoft
+        implementation 'com.microsoft.azure:msal4j:1.23.1'
+
+        // utils
+        implementation 'it.unimi.dsi:fastutil:8.5.18'
+        implementation 'net.sf.jopt-simple:jopt-simple:5.0.4'
+        implementation 'org.joml:joml:1.10.8'
+
+        // compression
+        implementation 'org.lz4:lz4-java:1.8.0'
+
+        // misc
+        implementation 'com.github.oshi:oshi-core:6.9.0'
+    }
+}
+
+task runServer(type: JavaExec) {
+    group = 'run'
+    description = 'Run Minecraft server'
+
+    def runDir = "${rootDir}/run_server"
+
+    doFirst {
+        mkdir runDir
+    }
+
+    mainClass = 'net.minecraft.server.Main'
+    classpath = project(':server').sourceSets.main.runtimeClasspath
+    workingDir = file(runDir)
+    args = ['nogui']
+}
+
+task runClient(type: JavaExec) {
+    group = 'run'
+    description = 'Run Minecraft client'
+
+    def runDir = "${rootDir}/run"
+
+    doFirst {
+        mkdir runDir
+    }
+
+    mainClass = 'net.minecraft.client.main.Main'
+    classpath = project(':client').sourceSets.main.runtimeClasspath
+    workingDir = file(runDir)
+    environment '__GL_THREADED_OPTIMIZATIONS', '0'
+    args = [
+        '--version', '1.21.11',
+        '--accessToken', '0',
+        '--assetsDir', 'assets',
+        '--assetIndex', assetIndexId
+    ]
+}
+
+task genServerPatch(type: Exec) {
+    group = 'patches'
+    description = 'Generate server.patch'
+
+    def decompDir = "${decompSrcDir}/server"
+    def fixedDir = "${rootDir}/server/src/main/java"
+    def patchFile = "${patchesDir}/server.patch"
+
+    commandLine = ['bash', '-c', """
+        cd "${rootDir}" && \\
+        (cd "${decompDir}" && find com net -name "*.java" -print0) | while IFS= read -r -d '' file; do
+            if [ -f "${fixedDir}/\$file" ]; then
+                diff -u "${decompDir}/\$file" "${fixedDir}/\$file" 2>/dev/null | sed "s|${decompDir}/|a/|g; s|${fixedDir}/|b/|g"
+            fi
+        done > "${patchFile}"
+        echo "Generated ${patchFile}"
+    """]
+}
+
+task genClientPatch(type: Exec) {
+    group = 'patches'
+    description = 'Generate client.patch'
+
+    def decompDir = "${decompSrcDir}/client"
+    def fixedDir = "${rootDir}/client/src/main/java"
+    def patchFile = "${patchesDir}/client.patch"
+
+    commandLine = ['bash', '-c', """
+        cd "${rootDir}" && \\
+        (cd "${decompDir}" && find com net -name "*.java" -print0) | while IFS= read -r -d '' file; do
+            if [ -f "${fixedDir}/\$file" ]; then
+                diff -u "${decompDir}/\$file" "${fixedDir}/\$file" 2>/dev/null | sed "s|${decompDir}/|a/|g; s|${fixedDir}/|b/|g"
+            fi
+        done > "${patchFile}"
+        echo "Generated ${patchFile}"
+    """]
+}
+
+jar.enabled = false
+
+clean {
+    delete "${rootDir}/run"
+    delete "${rootDir}/run_server"
+    delete "${rootDir}/decompSrc"
+    delete "${rootDir}/patchSrc"
+    delete "${rootDir}/client/src"
+    delete "${rootDir}/server/src"
+    delete "${rootDir}/client/bin"
+    delete "${rootDir}/server/bin"
+}
+
+task downloadAssetIndex {
+    group = 'assets'
+    description = 'Download asset index'
+    outputs.file("${rootDir}/run/assets/indexes/${assetIndexId}.json")
+
+    doLast {
+        def indexesDir = file("${rootDir}/run/assets/indexes")
+        indexesDir.mkdirs()
+        
+        def target = new File(indexesDir, "${assetIndexId}.json")
+        target.bytes = new URL(assetIndexUrl).bytes
+    }
+}
+
+task downloadAssets(dependsOn: downloadAssetIndex) {
+    group = 'assets'
+    description = 'Download hashed asset objects'
+    outputs.dir("${rootDir}/run/assets/objects")
+
+    doLast {
+        def indexFile = file("${rootDir}/run/assets/indexes/${assetIndexId}.json")
+        def indexJson = new groovy.json.JsonSlurper().parse(indexFile)
+        def objectsDir = file("${rootDir}/run/assets/objects")
+        objectsDir.mkdirs()
+
+        def objects = indexJson.objects
+        objects.each { path, meta ->
+            def hash = meta.hash
+            def subDir = hash.substring(0, 2)
+            def dest = new File(objectsDir, "${subDir}/${hash}")
+            if (dest.exists() && dest.length() == meta.size) {
+                return
+            }
+
+            dest.parentFile.mkdirs()
+            new URL("https://resources.download.minecraft.net/${subDir}/${hash}").withInputStream { is ->
+                dest.bytes = is.bytes
+            }
+        }
+    }
+}
+
+runClient.dependsOn downloadAssets

@@ -1,0 +1,43 @@
+def lwjglVersion = '3.3.6'
+def lwjglNatives = [
+    'natives-linux',
+    'natives-linux-arm64',
+    'natives-macos',
+    'natives-macos-arm64',
+    'natives-windows',
+    'natives-windows-arm64'
+]
+
+dependencies {
+    // lwjgl
+    implementation platform("org.lwjgl:lwjgl-bom:$lwjglVersion")
+    implementation 'org.lwjgl:lwjgl'
+    implementation 'org.lwjgl:lwjgl-glfw'
+    implementation 'org.lwjgl:lwjgl-opengl'
+    implementation 'org.lwjgl:lwjgl-openal'
+    implementation 'org.lwjgl:lwjgl-stb'
+    implementation 'org.lwjgl:lwjgl-tinyfd'
+    implementation 'org.lwjgl:lwjgl-freetype'
+
+    lwjglNatives.each { n ->
+        runtimeOnly "org.lwjgl:lwjgl::$n"
+        runtimeOnly "org.lwjgl:lwjgl-glfw::$n"
+        runtimeOnly "org.lwjgl:lwjgl-opengl::$n"
+        runtimeOnly "org.lwjgl:lwjgl-openal::$n"
+        runtimeOnly "org.lwjgl:lwjgl-stb::$n"
+        runtimeOnly "org.lwjgl:lwjgl-tinyfd::$n"
+        runtimeOnly "org.lwjgl:lwjgl-freetype::$n"
+    }
+
+    // text/audio
+    implementation 'com.ibm.icu:icu4j:77.1'
+    implementation 'com.mojang:text2speech:1.17.9'
+    implementation 'com.mojang:blocklist:1.0.10'
+    implementation 'org.jcraft:jorbis:0.0.17'
+
+    // compression
+    implementation 'org.apache.commons:commons-compress:1.28.0'
+
+    // macos objc bridge
+    implementation 'ca.weblite:java-objc-bridge:1.2'
+}
