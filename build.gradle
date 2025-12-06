@@ -35,6 +35,10 @@ def patchSrcDir = "${rootDir}/patchSrc"
 def assetIndexId = '29'
 def assetIndexUrl = 'https://piston-meta.mojang.com/v1/packages/568d91f5973ea84fe46311a88c93b5dc7c9fa6ec/29.json'
 
+def clientJarUrl = 'https://piston-data.mojang.com/v1/objects/8e75db09feb89eec8ed7f2a2ae779b3fb1fb7f18/client.jar'
+def serverJarUrl = 'https://piston-data.mojang.com/v1/objects/205a55e13ce3104298dd84d1fa55bc524fb3ca51/server.jar'
+def vineflowerUrl = 'https://github.com/Vineflower/vineflower/releases/download/1.11.2/vineflower-1.11.2.jar'
+
 def decompLibs = [
     'authlib-7.0.61.jar',
     'brigadier-1.3.10.jar',
@@ -53,9 +57,59 @@ def buildLibArgs(String libsPath, List<String> libs) {
     return libs.collect { "-e=${libsPath}/${it}" }
 }
 
+task downloadJars {
+    group = 'setup'
+    description = 'Download client and server jars'
+
+    doLast {
+        file(jarsDir).mkdirs()
+        file(libsDir).mkdirs()
+
+        def vfDest = new File(rootDir, 'vineflower.jar')
+        if (!vfDest.exists()) {
+            vfDest.bytes = new URL(vineflowerUrl).bytes
+        }
+
+        def clientDest = new File(jarsDir, 'client.jar')
+        def serverBundler = new File(jarsDir, 'server-bundler.jar')
+        def serverDest = new File(jarsDir, 'server.jar')
+
+        if (!clientDest.exists()) {
+            clientDest.bytes = new URL(clientJarUrl).bytes
+        }
+
+        if (!serverDest.exists()) {
+            serverBundler.bytes = new URL(serverJarUrl).bytes
+
+            def zipFile = new java.util.zip.ZipFile(serverBundler)
+            def versionsList = zipFile.getEntry('META-INF/versions.list')
+            def versionsContent = zipFile.getInputStream(versionsList).text.trim()
+            def parts = versionsContent.split('\t')
+            def serverEntry = zipFile.getEntry("META-INF/versions/${parts[2]}")
+            serverDest.bytes = zipFile.getInputStream(serverEntry).bytes
+
+            zipFile.entries().each { entry ->
+                if (entry.name.startsWith('META-INF/libraries/') && entry.name.endsWith('.jar')) {
+                    def jarName = entry.name.substring(entry.name.lastIndexOf('/') + 1)
+                    if (decompLibs.contains(jarName)) {
+                        def libDest = new File(libsDir, jarName)
+                        if (!libDest.exists()) {
+                            libDest.bytes = zipFile.getInputStream(entry).bytes
+                        }
+                    }
+                }
+            }
+
+            zipFile.close()
+            serverBundler.delete()
+        }
+    }
+}
+
 task decompServer(type: Exec) {
     group = 'decompile'
     description = 'Decompile server.jar'
+    dependsOn downloadJars
 
     def outputDir = "${decompSrcDir}/server"
     def inputJar = "${jarsDir}/server.jar"
@@ -77,6 +131,7 @@ task decompServer(type: Exec) {
 task decompClient(type: Exec) {
     group = 'decompile'
     description = 'Decompile client.jar'
+    dependsOn downloadJars
 
     def outputDir = "${decompSrcDir}/client"
     def inputJar = "${jarsDir}/client.jar"
@@ -478,6 +533,9 @@ clean {
     delete "${rootDir}/server/src"
     delete "${rootDir}/client/bin"
     delete "${rootDir}/server/bin"
+    delete "${rootDir}/jars"
+    delete "${rootDir}/libs"
+    delete "${rootDir}/vineflower.jar"
 }
 
 task downloadAssetIndex {

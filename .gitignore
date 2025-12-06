@@ -1,11 +1,15 @@
-# AI CLI Tools
 .claude/
 .claude-flow/
 .swarm/
 AGENTS.md
+CLAUDE.md
 
 .gradle
 build/
+
+jars/
+libs/
+vineflower.jar
 
 # Decompiled source (generated)
 decompSrc/
@@ -24,11 +28,8 @@ run/
 run_server/
 runclient/
 
-# Ignore Gradle GUI config
+# Gradle GUI config
 gradle-app.setting
-
-# Avoid ignoring Gradle wrapper jar file (.jar files are usually ignored)
-!gradle-wrapper.jar
 
 # IDE files
 .vscode/
