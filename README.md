@@ -5,7 +5,6 @@ Decompiled source from Mojang's unobfuscated JARs. No Loom, no Forge toolchains,
 ## Requirements
 
 - JDK 21+
-- Gradle (wrapper included)
 
 ## Setup
 
