@@ -33,7 +33,7 @@ def modsDir = "${rootDir}/mods"
 def decompSrcDir = "${rootDir}/decompSrc"
 def patchSrcDir = "${rootDir}/patchSrc"
 def assetIndexId = '29'
-def assetIndexUrl = 'https://piston-meta.mojang.com/v1/packages/9eb99101f5fd6921b599c7ca10e2fa3d1c909b99/29.json'
+def assetIndexUrl = 'https://piston-meta.mojang.com/v1/packages/568d91f5973ea84fe46311a88c93b5dc7c9fa6ec/29.json'
 
 def decompLibs = [
     'authlib-7.0.61.jar',
@@ -362,7 +362,7 @@ subprojects {
         implementation 'org.joml:joml:1.10.8'
 
         // compression
-        implementation 'org.lz4:lz4-java:1.8.0'
+        implementation 'at.yawk.lz4:lz4-java:1.8.1'
 
         // misc
         implementation 'com.github.oshi:oshi-core:6.9.0'
