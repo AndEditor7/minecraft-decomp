@@ -1,73 +1,24 @@
-MINECRAFT EVALUATION COPY LICENSE AGREEMENT
-Version 1.21.11 Pre-Release 2
+Minecraft Decompiled Source
 
 Copyright (c) Mojang AB. All Rights Reserved.
 
-NOTICE: THIS IS AN UNOBFUSCATED EVALUATION BUILD - NOT FOR DISTRIBUTION
+This repository contains decompiled source code from Minecraft's unobfuscated
+JAR files. Mojang owns all rights to this code.
 
-================================================================================
+You can use this for:
+- Learning how Minecraft works
+- Mod development reference
+- Bug reports and security research
 
-This software package ("Minecraft Evaluation Copy Decompilation Kit") contains
-decompiled source code derived from official Mojang unobfuscated JAR files
-distributed for review, evaluation, and educational purposes only.
+You cannot:
+- Redistribute this code
+- Use it commercially
+- Create competing products
 
-IMPORTANT LEGAL NOTICE
-----------------------
+This is decompiled output, not original source code. The decompiler may
+introduce artifacts or naming differences from Mojang's internal code.
 
-1. PROPRIETARY SOFTWARE
+No warranty. Use at your own risk.
 
-   This software, including all source code, assets, and associated materials,
-   is the exclusive property of Mojang AB, a Microsoft company. The underlying
-   intellectual property, game design, and implementation remain fully owned
-   by Mojang AB regardless of the decompiled or unobfuscated form.
-
-2. EVALUATION USE ONLY
-
-   This Evaluation Copy Decompilation Kit is provided solely for:
-
-   - Press review and evaluation purposes
-   - Educational study of game architecture
-   - Mod development reference
-   - Security research and bug reporting
-   - Personal, non-commercial experimentation
-
-3. PROHIBITED ACTIVITIES
-
-   You may NOT:
-
-   - Distribute, share, or republish this decompilation kit
-   - Use this code to create competing products
-   - Remove or alter this license notice
-   - Claim ownership of any portion of this code
-   - Use this code in commercial applications
-   - Redistribute modified or unmodified versions
-
-4. NO SOURCE CODE DISTRIBUTION
-
-   Mojang AB does not distribute original source code. This package contains
-   machine-decompiled output from officially provided unobfuscated JAR files.
-   The decompilation process may introduce artifacts, naming inconsistencies,
-   or structural differences from the original authored source code.
-
-5. DISCLAIMER
-
-   THIS SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-   IMPLIED. MOJANG AB DISCLAIMS ALL WARRANTIES INCLUDING MERCHANTABILITY AND
-   FITNESS FOR A PARTICULAR PURPOSE. IN NO EVENT SHALL MOJANG AB BE LIABLE FOR
-   ANY DAMAGES ARISING FROM THE USE OF THIS SOFTWARE.
-
-6. TERMINATION
-
-   This license is automatically terminated if you violate any of its terms.
-   Upon termination, you must destroy all copies of this software in your
-   possession.
-
-================================================================================
-
-For official Minecraft products and licenses, visit: https://www.minecraft.net
-For bug reports and security issues: https://bugs.mojang.com
-
-Mojang AB
-Stockholm, Sweden
-
-================================================================================
+For official Minecraft: https://www.minecraft.net
+For bug reports: https://bugs.mojang.com

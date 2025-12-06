@@ -11,7 +11,7 @@
              abilities.flying = false;
 --- a/net/minecraft/world/entity/player/Player.java	2025-11-26 19:52:22.000000000 +0100
 +++ b/net/minecraft/world/entity/player/Player.java	2025-11-26 20:18:12.538330216 +0100
-@@ -1393,6 +1393,23 @@
+@@ -1401,6 +1401,23 @@
                  double originalMovementY = this.getDeltaMovement().y;
                  super.travel(input);
                  this.setDeltaMovement(this.getDeltaMovement().with(Direction.Axis.Y, originalMovementY * 0.6));
