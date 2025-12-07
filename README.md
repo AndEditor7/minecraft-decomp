@@ -93,7 +93,7 @@ Old-school jar modding is back. To use your mods with PrismLauncher:
    ```
 
 3. **Restart PrismLauncher:**
-   1. There should be a new instance `1.21.11-rc2 Unobfuscated`
+   1. There should be a new instance `My Modded Minecraft`
    2. You can edit it to toggle `Unobfuscated` component to disable unobfuscated client
    3. Or you can toggle `Mods` component to disable your mods
 
