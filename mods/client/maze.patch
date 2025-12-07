@@ -1,0 +1,145 @@
+--- a/net/minecraft/world/level/levelgen/DensityFunctions.java	2025-12-07 14:45:36.109273548 +0100
++++ /home/user/github/minecraft-decomp/client/src/main/java/a/net/minecraft/world/level/levelgen/DensityFunctions.java	2025-12-07 14:40:57.849212137 +0100
+@@ -72,6 +72,7 @@
+         register(registry, "spline", DensityFunctions.Spline.CODEC);
+         register(registry, "constant", DensityFunctions.Constant.CODEC);
+         register(registry, "y_clamped_gradient", DensityFunctions.YClampedGradient.CODEC);
++        register(registry, "maze_wall", DensityFunctions.MazeWall.CODEC);
+         return register(registry, "find_top_surface", DensityFunctions.FindTopSurface.CODEC);
+     }
+ 
+@@ -280,6 +281,10 @@
+         return new DensityFunctions.FindTopSurface(density, upperBound, lowerBound, stepSize);
+     }
+ 
++    public static DensityFunction mazeWall(final int cellSize, final int wallThickness, final int wallHeight) {
++        return new DensityFunctions.MazeWall(cellSize, wallThickness, wallHeight);
++    }
++
+     private record Ap2(
+         DensityFunctions.TwoArgumentSimpleFunction.Type type, DensityFunction argument1, DensityFunction argument2, double minValue, double maxValue
+     ) implements DensityFunctions.TwoArgumentSimpleFunction {
+@@ -1391,6 +1396,85 @@
+         }
+     }
+ 
++    protected record MazeWall(int cellSize, int wallThickness, int wallHeight) implements DensityFunction.SimpleFunction {
++        private static final MapCodec<DensityFunctions.MazeWall> DATA_CODEC = RecordCodecBuilder.mapCodec(
++            i -> i.group(
++                    Codec.INT.fieldOf("cell_size").forGetter(DensityFunctions.MazeWall::cellSize),
++                    Codec.INT.fieldOf("wall_thickness").forGetter(DensityFunctions.MazeWall::wallThickness),
++                    Codec.INT.fieldOf("wall_height").forGetter(DensityFunctions.MazeWall::wallHeight)
++                )
++                .apply(i, DensityFunctions.MazeWall::new)
++        );
++        public static final KeyDispatchDataCodec<DensityFunctions.MazeWall> CODEC = DensityFunctions.makeCodec(DATA_CODEC);
++
++        private long hash(final long x, final long z) {
++            long h = x * 3129871L ^ z * 116129781L;
++            h = h * h * 42317861L + h * 11L;
++            return h;
++        }
++
++        private boolean hasOpening(final int cellX, final int cellZ, final int dir) {
++            long h = hash(cellX, cellZ);
++            return ((h >> dir) & 1L) == 0L;
++        }
++
++        @Override
++        public double compute(final DensityFunction.FunctionContext context) {
++            int x = context.blockX();
++            int y = context.blockY();
++            int z = context.blockZ();
++
++            if (y < 64) return 1.0;
++            if (y >= 64 + this.wallHeight) return -1.0;
++
++            int localX = Math.floorMod(x, this.cellSize);
++            int localZ = Math.floorMod(z, this.cellSize);
++            int cellX = Math.floorDiv(x, this.cellSize);
++            int cellZ = Math.floorDiv(z, this.cellSize);
++
++            boolean onWallX = localX < this.wallThickness;
++            boolean onWallZ = localZ < this.wallThickness;
++
++            if (!onWallX && !onWallZ) return -1.0;
++
++            if (onWallX && onWallZ) return 1.0;
++
++            int pathStart = this.wallThickness;
++            int pathEnd = this.cellSize - this.wallThickness;
++            int pathMid = (pathStart + pathEnd) / 2;
++            int openingHalf = (pathEnd - pathStart) / 3;
++
++            if (onWallX) {
++                if (localZ >= pathMid - openingHalf && localZ <= pathMid + openingHalf) {
++                    if (hasOpening(cellX, cellZ, 0)) return -1.0;
++                }
++            }
++
++            if (onWallZ) {
++                if (localX >= pathMid - openingHalf && localX <= pathMid + openingHalf) {
++                    if (hasOpening(cellX, cellZ, 1)) return -1.0;
++                }
++            }
++
++            return 1.0;
++        }
++
++        @Override
++        public double minValue() {
++            return -1.0;
++        }
++
++        @Override
++        public double maxValue() {
++            return 1.0;
++        }
++
++        @Override
++        public KeyDispatchDataCodec<? extends DensityFunction> codec() {
++            return CODEC;
++        }
++    }
++
+     private record YClampedGradient(int fromY, int toY, double fromValue, double toValue) implements DensityFunction.SimpleFunction {
+         private static final MapCodec<DensityFunctions.YClampedGradient> DATA_CODEC = RecordCodecBuilder.mapCodec(
+             i -> i.group(
+--- a/net/minecraft/world/level/levelgen/RandomState.java	2025-12-07 14:45:36.108581661 +0100
++++ /home/user/github/minecraft-decomp/client/src/main/java/a/net/minecraft/world/level/levelgen/RandomState.java	2025-12-07 14:28:09.234229820 +0100
+@@ -94,7 +94,8 @@
+             }
+         }
+ 
+-        this.router = settings.noiseRouter().mapAll(new NoiseWiringHelper());
++        NoiseRouter baseRouter = settings.noiseRouter().mapAll(new NoiseWiringHelper());
++        this.router = wrapMaze(baseRouter);
+         DensityFunction.Visitor noiseFlattener = new DensityFunction.Visitor() {
+             private final Map<DensityFunction, DensityFunction> wrapped = new HashMap<>();
+ 
+@@ -149,4 +150,25 @@
+     public PositionalRandomFactory oreRandom() {
+         return this.oreRandom;
+     }
++
++    private static NoiseRouter wrapMaze(final NoiseRouter router) {
++        DensityFunction maze = DensityFunctions.mazeWall(32, 2, 20);
++        return new NoiseRouter(
++            router.barrierNoise(),
++            router.fluidLevelFloodednessNoise(),
++            router.fluidLevelSpreadNoise(),
++            router.lavaNoise(),
++            router.temperature(),
++            router.vegetation(),
++            router.continents(),
++            router.erosion(),
++            router.depth(),
++            router.ridges(),
++            router.preliminarySurfaceLevel(),
++            maze,
++            router.veinToggle(),
++            router.veinRidged(),
++            router.veinGap()
++        );
++    }
+ }
