@@ -12,6 +12,8 @@ public class Mod {
             if (!patch.exists()) throw new RuntimeException("Patch not found: " + patch);
             Patcher.apply(new File(root, side + "/src/main/java"), patch);
         }
+
+        Utils.rm(new File(root, side + "/build/classes").toPath());
     }
 
     public static void revert(File root, String side, String[] names) throws Exception {
@@ -31,9 +33,7 @@ public class Mod {
         Patcher.diff(base, src, out, true);
     }
 
-    public static void pack(File root, String side, String[] names) throws Exception {
-        apply(root, side, names);
-
+    public static void pack(File root, String side) throws Exception {
         File base = new File(root, "patchSrc/" + side + "-base.zip");
         File src = new File(root, side + "/src/main/java");
         File classes = new File(root, side + "/build/classes/java/main");

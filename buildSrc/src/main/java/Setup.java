@@ -12,14 +12,14 @@ public class Setup {
         Path j = root.toPath().resolve(side + "/src/main/java");
         Path r = root.toPath().resolve(side + "/src/main/resources");
 
-        rm(j); mkdir(j);
-        cp(d.resolve("com"), j.resolve("com"));
-        cp(d.resolve("net"), j.resolve("net"));
+        Utils.rm(j); Utils.mkdir(j);
+        Utils.cp(d.resolve("com"), j.resolve("com"));
+        Utils.cp(d.resolve("net"), j.resolve("net"));
 
-        rm(r); mkdir(r);
-        cp(d.resolve("assets"), r.resolve("assets"));
-        cp(d.resolve("data"), r.resolve("data"));
-        cp(d.resolve("META-INF"), r.resolve("META-INF"));
+        Utils.rm(r); Utils.mkdir(r);
+        Utils.cp(d.resolve("assets"), r.resolve("assets"));
+        Utils.cp(d.resolve("data"), r.resolve("data"));
+        Utils.cp(d.resolve("META-INF"), r.resolve("META-INF"));
 
         for (File f : d.toFile().listFiles((dir, name) -> name.endsWith(".json") || name.endsWith(".jfc")))
             Files.copy(f.toPath(), r.resolve(f.getName()));
@@ -64,28 +64,5 @@ public class Setup {
                         .toURL().openStream(), f.toPath());
             }
         }
-    }
-
-    private static void rm(Path p) throws IOException {
-        if (!Files.exists(p)) return;
-
-        Files.walk(p).sorted(Comparator.reverseOrder()).forEach(f -> {
-            try {
-                Files.delete(f);
-            } catch (IOException e) {}
-        });
-    }
-
-    private static void mkdir(Path p) throws IOException { Files.createDirectories(p); }
-
-    private static void cp(Path src, Path dst) throws IOException {
-        if (!Files.exists(src)) return;
-        Files.walk(src).forEach(s -> {
-            try {
-                Files.copy(s, dst.resolve(src.relativize(s)), StandardCopyOption.REPLACE_EXISTING);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        });
     }
 }
