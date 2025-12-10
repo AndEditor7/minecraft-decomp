@@ -35,9 +35,9 @@ ext {
 
     urls = [
         vf: 'https://github.com/Vineflower/vineflower/releases/download/1.11.2/vineflower-1.11.2.jar',
-        client: 'https://piston-data.mojang.com/v1/objects/8e75db09feb89eec8ed7f2a2ae779b3fb1fb7f18/client.jar',
-        server: 'https://piston-data.mojang.com/v1/objects/205a55e13ce3104298dd84d1fa55bc524fb3ca51/server.jar',
-        assets: 'https://piston-meta.mojang.com/v1/packages/568d91f5973ea84fe46311a88c93b5dc7c9fa6ec/29.json',
+        client: 'https://piston-data.mojang.com/v1/objects/4509ee9b65f226be61142d37bf05f8d28b03417b/client.jar',
+        server: 'https://piston-data.mojang.com/v1/objects/3ca78d5068bf9b422f694d3f0820e289581c0f0d/server.jar',
+        assets: 'https://piston-meta.mojang.com/v1/packages/aaf4be9d6e197c384a09b1d9c631c6900d1f077c/29.json',
     ]
 
     assetsVer = '29'
