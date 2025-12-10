@@ -1,5 +1,5 @@
---- a/net/minecraft/world/level/levelgen/DensityFunctions.java	2025-12-07 14:45:36.109273548 +0100
-+++ /home/user/github/minecraft-decomp/client/src/main/java/a/net/minecraft/world/level/levelgen/DensityFunctions.java	2025-12-07 14:40:57.849212137 +0100
+--- a/net/minecraft/world/level/levelgen/DensityFunctions.java	2025-12-10 12:13:46.468496065 +0100
++++ b/net/minecraft/world/level/levelgen/DensityFunctions.java	2025-12-10 12:13:07.200959142 +0100
 @@ -72,6 +72,7 @@
          register(registry, "spline", DensityFunctions.Spline.CODEC);
          register(registry, "constant", DensityFunctions.Constant.CODEC);
@@ -12,77 +12,105 @@
          return new DensityFunctions.FindTopSurface(density, upperBound, lowerBound, stepSize);
      }
  
-+    public static DensityFunction mazeWall(final int cellSize, final int wallThickness, final int wallHeight) {
-+        return new DensityFunctions.MazeWall(cellSize, wallThickness, wallHeight);
++    public static DensityFunction mazeWall(final int cell, final int thick, final int height) {
++        return new DensityFunctions.MazeWall(cell, thick, height);
 +    }
 +
      private record Ap2(
          DensityFunctions.TwoArgumentSimpleFunction.Type type, DensityFunction argument1, DensityFunction argument2, double minValue, double maxValue
      ) implements DensityFunctions.TwoArgumentSimpleFunction {
-@@ -1391,6 +1396,85 @@
+@@ -1391,6 +1396,113 @@
          }
      }
  
-+    protected record MazeWall(int cellSize, int wallThickness, int wallHeight) implements DensityFunction.SimpleFunction {
++    protected record MazeWall(int cell, int thick, int height) implements DensityFunction.SimpleFunction {
 +        private static final MapCodec<DensityFunctions.MazeWall> DATA_CODEC = RecordCodecBuilder.mapCodec(
 +            i -> i.group(
-+                    Codec.INT.fieldOf("cell_size").forGetter(DensityFunctions.MazeWall::cellSize),
-+                    Codec.INT.fieldOf("wall_thickness").forGetter(DensityFunctions.MazeWall::wallThickness),
-+                    Codec.INT.fieldOf("wall_height").forGetter(DensityFunctions.MazeWall::wallHeight)
++                    Codec.INT.fieldOf("cell_size").forGetter(DensityFunctions.MazeWall::cell),
++                    Codec.INT.fieldOf("wall_thickness").forGetter(DensityFunctions.MazeWall::thick),
++                    Codec.INT.fieldOf("wall_height").forGetter(DensityFunctions.MazeWall::height)
 +                )
 +                .apply(i, DensityFunctions.MazeWall::new)
 +        );
 +        public static final KeyDispatchDataCodec<DensityFunctions.MazeWall> CODEC = DensityFunctions.makeCodec(DATA_CODEC);
++        private static final int HILBERT_N = 4;
++        private static final int HILBERT_SZ = 1 << HILBERT_N;
++        private static final int[] DX = {-1, 1, 0, 0};
++        private static final int[] DZ = {0, 0, -1, 1};
 +
-+        private long hash(final long x, final long z) {
-+            long h = x * 3129871L ^ z * 116129781L;
++        private static int hilbertXy2d(final int n, final int x, final int y) {
++            int rx, ry, s, d = 0;
++            int cx = x, cy = y;
++            for (s = n / 2; s > 0; s /= 2) {
++                rx = (cx & s) > 0 ? 1 : 0;
++                ry = (cy & s) > 0 ? 1 : 0;
++                d += s * s * ((3 * rx) ^ ry);
++                if (ry == 0) {
++                    if (rx == 1) {
++                        cx = s - 1 - cx;
++                        cy = s - 1 - cy;
++                    }
++                    int temp = cx;
++                    cx = cy;
++                    cy = temp;
++                }
++            }
++            return d;
++        }
++
++        private long hash(final long a, final long b, final long c) {
++            long h = a * 3129871L ^ b * 116129781L ^ c * 982451653L;
 +            h = h * h * 42317861L + h * 11L;
 +            return h;
 +        }
 +
-+        private boolean hasOpening(final int cellX, final int cellZ, final int dir) {
-+            long h = hash(cellX, cellZ);
-+            return ((h >> dir) & 1L) == 0L;
++        private int getConn(final int cx, final int cz) {
++            int hx = Math.floorMod(cx, HILBERT_SZ);
++            int hz = Math.floorMod(cz, HILBERT_SZ);
++            int qx = Math.floorDiv(cx, HILBERT_SZ);
++            int qz = Math.floorDiv(cz, HILBERT_SZ);
++            int d = hilbertXy2d(HILBERT_SZ, hx, hz);
++            int[] cand = new int[4];
++            int n = 0;
++            for (int dir = 0; dir < 4; dir++) {
++                int nx = hx + DX[dir];
++                int nz = hz + DZ[dir];
++                if (nx < 0 || nx >= HILBERT_SZ || nz < 0 || nz >= HILBERT_SZ) continue;
++                int nd = hilbertXy2d(HILBERT_SZ, nx, nz);
++                if (nd > d) cand[n++] = dir;
++            }
++            if (n == 0) return -1;
++            long h = hash(cx, cz, qx * 31L + qz);
++            return cand[(int) ((h & 0x7FFFFFFFL) % n)];
++        }
++
++        private boolean isOpen(final int cx, final int cz, final int dir) {
++            int conn = getConn(cx, cz);
++            if (conn == dir) return true;
++            int nx = cx + DX[dir];
++            int nz = cz + DZ[dir];
++            return getConn(nx, nz) == (dir ^ 1);
 +        }
 +
 +        @Override
-+        public double compute(final DensityFunction.FunctionContext context) {
-+            int x = context.blockX();
-+            int y = context.blockY();
-+            int z = context.blockZ();
-+
-+            if (y < 64) return 1.0;
-+            if (y >= 64 + this.wallHeight) return -1.0;
-+
-+            int localX = Math.floorMod(x, this.cellSize);
-+            int localZ = Math.floorMod(z, this.cellSize);
-+            int cellX = Math.floorDiv(x, this.cellSize);
-+            int cellZ = Math.floorDiv(z, this.cellSize);
-+
-+            boolean onWallX = localX < this.wallThickness;
-+            boolean onWallZ = localZ < this.wallThickness;
-+
-+            if (!onWallX && !onWallZ) return -1.0;
-+
-+            if (onWallX && onWallZ) return 1.0;
-+
-+            int pathStart = this.wallThickness;
-+            int pathEnd = this.cellSize - this.wallThickness;
-+            int pathMid = (pathStart + pathEnd) / 2;
-+            int openingHalf = (pathEnd - pathStart) / 3;
-+
-+            if (onWallX) {
-+                if (localZ >= pathMid - openingHalf && localZ <= pathMid + openingHalf) {
-+                    if (hasOpening(cellX, cellZ, 0)) return -1.0;
-+                }
-+            }
-+
-+            if (onWallZ) {
-+                if (localX >= pathMid - openingHalf && localX <= pathMid + openingHalf) {
-+                    if (hasOpening(cellX, cellZ, 1)) return -1.0;
-+                }
-+            }
-+
++        public double compute(final DensityFunction.FunctionContext ctx) {
++            int x = ctx.blockX();
++            int y = ctx.blockY();
++            int z = ctx.blockZ();
++            int floor = 64;
++            if (y < floor) return 1.0;
++            if (y >= floor + this.height) return -1.0;
++            int stride = this.cell + this.thick;
++            int lx = Math.floorMod(x, stride);
++            int lz = Math.floorMod(z, stride);
++            int cx = Math.floorDiv(x, stride);
++            int cz = Math.floorDiv(z, stride);
++            boolean wx = lx < this.thick;
++            boolean wz = lz < this.thick;
++            if (!wx && !wz) return -1.0;
++            if (wx && wz) return 1.0;
++            if (wx && lz >= this.thick && isOpen(cx, cz, 0)) return -1.0;
++            if (wz && lx >= this.thick && isOpen(cx, cz, 2)) return -1.0;
 +            return 1.0;
 +        }
 +
@@ -105,15 +133,15 @@
      private record YClampedGradient(int fromY, int toY, double fromValue, double toValue) implements DensityFunction.SimpleFunction {
          private static final MapCodec<DensityFunctions.YClampedGradient> DATA_CODEC = RecordCodecBuilder.mapCodec(
              i -> i.group(
---- a/net/minecraft/world/level/levelgen/RandomState.java	2025-12-07 14:45:36.108581661 +0100
-+++ /home/user/github/minecraft-decomp/client/src/main/java/a/net/minecraft/world/level/levelgen/RandomState.java	2025-12-07 14:28:09.234229820 +0100
+--- a/net/minecraft/world/level/levelgen/RandomState.java	2025-12-10 12:13:46.467890698 +0100
++++ b/net/minecraft/world/level/levelgen/RandomState.java	2025-12-10 12:13:40.929849826 +0100
 @@ -94,7 +94,8 @@
              }
          }
  
 -        this.router = settings.noiseRouter().mapAll(new NoiseWiringHelper());
-+        NoiseRouter baseRouter = settings.noiseRouter().mapAll(new NoiseWiringHelper());
-+        this.router = wrapMaze(baseRouter);
++        NoiseRouter base = settings.noiseRouter().mapAll(new NoiseWiringHelper());
++        this.router = wrapMaze(base);
          DensityFunction.Visitor noiseFlattener = new DensityFunction.Visitor() {
              private final Map<DensityFunction, DensityFunction> wrapped = new HashMap<>();
  
@@ -122,24 +150,24 @@
          return this.oreRandom;
      }
 +
-+    private static NoiseRouter wrapMaze(final NoiseRouter router) {
-+        DensityFunction maze = DensityFunctions.mazeWall(32, 2, 20);
++    private static NoiseRouter wrapMaze(final NoiseRouter r) {
++        DensityFunction maze = DensityFunctions.mazeWall(8, 4, 100);
 +        return new NoiseRouter(
-+            router.barrierNoise(),
-+            router.fluidLevelFloodednessNoise(),
-+            router.fluidLevelSpreadNoise(),
-+            router.lavaNoise(),
-+            router.temperature(),
-+            router.vegetation(),
-+            router.continents(),
-+            router.erosion(),
-+            router.depth(),
-+            router.ridges(),
-+            router.preliminarySurfaceLevel(),
++            r.barrierNoise(),
++            r.fluidLevelFloodednessNoise(),
++            r.fluidLevelSpreadNoise(),
++            r.lavaNoise(),
++            r.temperature(),
++            r.vegetation(),
++            r.continents(),
++            r.erosion(),
++            r.depth(),
++            r.ridges(),
++            r.preliminarySurfaceLevel(),
 +            maze,
-+            router.veinToggle(),
-+            router.veinRidged(),
-+            router.veinGap()
++            r.veinToggle(),
++            r.veinRidged(),
++            r.veinGap()
 +        );
 +    }
  }

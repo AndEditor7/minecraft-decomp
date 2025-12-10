@@ -54,8 +54,8 @@ public class Patcher {
                     try {
                         String d = Utils.runOut(tmp.toFile(), "diff", "-u", rel, curFile.getAbsolutePath());
                         if (!d.isEmpty()) {
-                            d = d.replace(rel, "a/" + rel);
-                            d = d.replace(curFile.getAbsolutePath(), "b/" + rel);
+                            d = d.replaceFirst("--- " + rel, "--- a/" + rel);
+                            d = d.replaceFirst("\\+\\+\\+ .*", "+++ b/" + rel);
                             sb.append(d);
                         }
                     } catch (Exception e) {}

@@ -1,0 +1,178 @@
+--- a/net/minecraft/world/level/levelgen/NoiseBasedChunkGenerator.java	2025-12-10 12:44:56.116119417 +0100
++++ b/net/minecraft/world/level/levelgen/NoiseBasedChunkGenerator.java	2025-12-10 12:37:37.634851163 +0100
+@@ -67,17 +67,8 @@
+     }
+ 
+     private static Aquifer.FluidPicker createFluidPicker(final NoiseGeneratorSettings settings) {
+-        Aquifer.FluidStatus lavaStatus = new Aquifer.FluidStatus(-54, Blocks.LAVA.defaultBlockState());
+-        int seaLevel = settings.seaLevel();
+-        Aquifer.FluidStatus seaStatus = new Aquifer.FluidStatus(seaLevel, settings.defaultFluid());
+         Aquifer.FluidStatus emptyStatus = new Aquifer.FluidStatus(DimensionType.MIN_Y * 2, Blocks.AIR.defaultBlockState());
+-        return (x, y, z) -> {
+-            if (SharedConstants.DEBUG_DISABLE_FLUID_GENERATION) {
+-                return emptyStatus;
+-            } else {
+-                return y < Math.min(-54, seaLevel) ? lavaStatus : seaStatus;
+-            }
+-        };
++        return (x, y, z) -> emptyStatus;
+     }
+ 
+     @Override
+--- a/net/minecraft/world/level/levelgen/DensityFunctions.java	2025-12-10 12:44:56.111136305 +0100
++++ b/net/minecraft/world/level/levelgen/DensityFunctions.java	2025-12-10 12:27:43.238039259 +0100
+@@ -72,6 +72,7 @@
+         register(registry, "spline", DensityFunctions.Spline.CODEC);
+         register(registry, "constant", DensityFunctions.Constant.CODEC);
+         register(registry, "y_clamped_gradient", DensityFunctions.YClampedGradient.CODEC);
++        register(registry, "planetoids", DensityFunctions.Planetoids.CODEC);
+         return register(registry, "find_top_surface", DensityFunctions.FindTopSurface.CODEC);
+     }
+ 
+@@ -280,6 +281,10 @@
+         return new DensityFunctions.FindTopSurface(density, upperBound, lowerBound, stepSize);
+     }
+ 
++    public static DensityFunction planetoids(final int minRad, final int maxRad, final int spacing) {
++        return new DensityFunctions.Planetoids(minRad, maxRad, spacing);
++    }
++
+     private record Ap2(
+         DensityFunctions.TwoArgumentSimpleFunction.Type type, DensityFunction argument1, DensityFunction argument2, double minValue, double maxValue
+     ) implements DensityFunctions.TwoArgumentSimpleFunction {
+@@ -1391,6 +1396,96 @@
+         }
+     }
+ 
++    protected record Planetoids(int minRad, int maxRad, int spacing) implements DensityFunction.SimpleFunction {
++        private static final MapCodec<DensityFunctions.Planetoids> DATA_CODEC = RecordCodecBuilder.mapCodec(
++            i -> i.group(
++                    Codec.INT.fieldOf("min_radius").forGetter(DensityFunctions.Planetoids::minRad),
++                    Codec.INT.fieldOf("max_radius").forGetter(DensityFunctions.Planetoids::maxRad),
++                    Codec.INT.fieldOf("spacing").forGetter(DensityFunctions.Planetoids::spacing)
++                )
++                .apply(i, DensityFunctions.Planetoids::new)
++        );
++        public static final KeyDispatchDataCodec<DensityFunctions.Planetoids> CODEC = DensityFunctions.makeCodec(DATA_CODEC);
++        private static final int MIN_Y = -64;
++        private static final int MAX_Y = 320;
++
++        private long hash(final long a, final long b, final long c) {
++            long h = a * 3129871L ^ b * 116129781L ^ c * 982451653L;
++            h = h * h * 42317861L + h * 11L;
++            return h;
++        }
++
++        private int getPlanetRadius(final int cx, final int cy, final int cz) {
++            long h = hash(cx, cy, cz);
++            return this.minRad + (int) ((h & 0x7FFFFFFFL) % (this.maxRad - this.minRad + 1));
++        }
++
++        private int getPlanetOffsetX(final int cx, final int cy, final int cz, final int rad) {
++            long h = hash(cx + 1000, cy, cz);
++            int maxOff = (this.spacing - rad * 2) / 2;
++            if (maxOff <= 0) return 0;
++            return (int) ((h & 0x7FFFFFFFL) % (maxOff * 2 + 1)) - maxOff;
++        }
++
++        private int getPlanetOffsetY(final int cx, final int cy, final int cz, final int rad) {
++            long h = hash(cx, cy + 1000, cz);
++            int maxOff = (this.spacing - rad * 2) / 2;
++            if (maxOff <= 0) return 0;
++            return (int) ((h & 0x7FFFFFFFL) % (maxOff * 2 + 1)) - maxOff;
++        }
++
++        private int getPlanetOffsetZ(final int cx, final int cy, final int cz, final int rad) {
++            long h = hash(cx, cy, cz + 1000);
++            int maxOff = (this.spacing - rad * 2) / 2;
++            if (maxOff <= 0) return 0;
++            return (int) ((h & 0x7FFFFFFFL) % (maxOff * 2 + 1)) - maxOff;
++        }
++
++        @Override
++        public double compute(final DensityFunction.FunctionContext ctx) {
++            int x = ctx.blockX();
++            int y = ctx.blockY();
++            int z = ctx.blockZ();
++            int cx = Math.floorDiv(x, this.spacing);
++            int cy = Math.floorDiv(y, this.spacing);
++            int cz = Math.floorDiv(z, this.spacing);
++            double closest = Double.MAX_VALUE;
++            for (int dx = -1; dx <= 1; dx++) {
++                for (int dy = -1; dy <= 1; dy++) {
++                    for (int dz = -1; dz <= 1; dz++) {
++                        int ncx = cx + dx;
++                        int ncy = cy + dy;
++                        int ncz = cz + dz;
++                        int rad = getPlanetRadius(ncx, ncy, ncz);
++                        int centerY = ncy * this.spacing + this.spacing / 2 + getPlanetOffsetY(ncx, ncy, ncz, rad);
++                        if (centerY - rad < MIN_Y || centerY + rad > MAX_Y) continue;
++                        int centerX = ncx * this.spacing + this.spacing / 2 + getPlanetOffsetX(ncx, ncy, ncz, rad);
++                        int centerZ = ncz * this.spacing + this.spacing / 2 + getPlanetOffsetZ(ncx, ncy, ncz, rad);
++                        double distSq = (x - centerX) * (x - centerX) + (y - centerY) * (y - centerY) + (z - centerZ) * (z - centerZ);
++                        double dist = Math.sqrt(distSq) - rad;
++                        if (dist < closest) closest = dist;
++                    }
++                }
++            }
++            return closest <= 0 ? 1.0 : -1.0;
++        }
++
++        @Override
++        public double minValue() {
++            return -1.0;
++        }
++
++        @Override
++        public double maxValue() {
++            return 1.0;
++        }
++
++        @Override
++        public KeyDispatchDataCodec<? extends DensityFunction> codec() {
++            return CODEC;
++        }
++    }
++
+     private record YClampedGradient(int fromY, int toY, double fromValue, double toValue) implements DensityFunction.SimpleFunction {
+         private static final MapCodec<DensityFunctions.YClampedGradient> DATA_CODEC = RecordCodecBuilder.mapCodec(
+             i -> i.group(
+--- a/net/minecraft/world/level/levelgen/RandomState.java	2025-12-10 12:44:56.110517050 +0100
++++ b/net/minecraft/world/level/levelgen/RandomState.java	2025-12-10 12:30:03.759735815 +0100
+@@ -94,7 +94,8 @@
+             }
+         }
+ 
+-        this.router = settings.noiseRouter().mapAll(new NoiseWiringHelper());
++        NoiseRouter base = settings.noiseRouter().mapAll(new NoiseWiringHelper());
++        this.router = wrapPlanetoids(base);
+         DensityFunction.Visitor noiseFlattener = new DensityFunction.Visitor() {
+             private final Map<DensityFunction, DensityFunction> wrapped = new HashMap<>();
+ 
+@@ -149,4 +150,26 @@
+     public PositionalRandomFactory oreRandom() {
+         return this.oreRandom;
+     }
++
++    private static NoiseRouter wrapPlanetoids(final NoiseRouter r) {
++        DensityFunction planets = DensityFunctions.planetoids(16, 48, 128);
++        DensityFunction noFluid = DensityFunctions.constant(-1.0);
++        return new NoiseRouter(
++            r.barrierNoise(),
++            noFluid,
++            noFluid,
++            noFluid,
++            r.temperature(),
++            r.vegetation(),
++            r.continents(),
++            r.erosion(),
++            r.depth(),
++            r.ridges(),
++            noFluid,
++            planets,
++            noFluid,
++            noFluid,
++            noFluid
++        );
++    }
+ }

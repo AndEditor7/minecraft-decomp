@@ -11,23 +11,21 @@
              abilities.flying = false;
 --- a/net/minecraft/world/entity/player/Player.java	2025-11-26 19:52:22.000000000 +0100
 +++ b/net/minecraft/world/entity/player/Player.java	2025-11-26 20:18:12.538330216 +0100
-@@ -1401,6 +1401,23 @@
+@@ -1401,6 +1401,21 @@
                  double originalMovementY = this.getDeltaMovement().y;
                  super.travel(input);
                  this.setDeltaMovement(this.getDeltaMovement().with(Direction.Axis.Y, originalMovementY * 0.6));
-+
 +                if (this.random.nextFloat() < 0.4F) {
 +                    for (int i = 0; i < 8; i++) {
-+                        double angle = this.random.nextDouble() * Math.PI * 2.0;
-+                        double radius = Math.sqrt(this.random.nextDouble()) * 2.0;
-+                        double xOff = Math.cos(angle) * radius;
-+                        double zOff = Math.sin(angle) * radius;
-+
++                        double a = this.random.nextDouble() * Math.PI * 2.0;
++                        double r = Math.sqrt(this.random.nextDouble()) * 2.0;
++                        double dx = Math.cos(a) * r;
++                        double dz = Math.sin(a) * r;
 +                        this.level().addParticle(
 +                            ParticleTypes.CLOUD,
-+                            this.getX() + xOff,
++                            this.getX() + dx,
 +                            this.getY() - 0.5,
-+                            this.getZ() + zOff,
++                            this.getZ() + dz,
 +                            0.0, -0.05, 0.0
 +                        );
 +                    }
@@ -44,7 +42,7 @@
 +import net.minecraft.world.level.Explosion;
  import net.minecraft.world.level.Level;
  import org.jspecify.annotations.Nullable;
- 
+
 @@ -73,6 +74,14 @@
      @Override
      public void tick() {
